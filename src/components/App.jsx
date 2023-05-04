@@ -1,92 +1,78 @@
-import React, { Component } from 'react';
+import { useState } from 'react';
+import { nanoid } from 'nanoid';
+import { ToastContainer, Slide } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
+
 import { GlobalStyle } from './GlobalStyle';
 import { Layout } from './Layout/Layout';
+
 import initialContacts from 'data/contacts.json';
 import { Section } from './Section/Section';
 import { ContactForm } from './ContactForm/ContactForm';
 import { Header } from './Header/Header';
 import Filter from './Filter/Filter';
 import { ContactList } from './ContactList/ContactList';
-import { nanoid } from 'nanoid';
+import { notifyOptions } from 'utils/notify';
+import useLocaStorage from 'hooks/useLocalStorage';
+
+
 
 // render > didMount > getItem > setState > update > render > didUpdate > setItem
 
-export default class App extends Component {
-  state = {
-    contacts: initialContacts,
-    filter: '',
-  };
+export const App = () => {
+  const [contacts, setContacts] = useLocaStorage('contacts', initialContacts);
+  const [filter, setFilter] = useState('');
 
-  componentDidMount() {
-    console.log('componentDidMount');
-    const savedContacts = localStorage.getItem('contacts');
-    console.log(savedContacts);
-    if (savedContacts !== null) {
-      this.setState({
-        contacts: JSON.parse(savedContacts),
-      });
-    } else {
-      this.setState({
-        contacts: initialContacts,
-      });
-    }
-  }
-
-  componentDidUpdate(prevProps, prevState) {
-    console.log('componentDidUpdate');
-    if (prevState.contacts !== this.state.contacts) {
-      localStorage.setItem('contacts', JSON.stringify(this.state.contacts));
-    }
-  }
-
-  addContact = newContact => {
-    const isExist = this.state.contacts.some(
+  const addContact = newContact => {
+    const isExist = contacts.some(
       ({ name, number }) =>
         name.toLowerCase() === newContact.name.toLowerCase() ||
-        number === newContact.number
+        number.trim() === newContact.number.trim()
     );
     if (isExist) {
       return alert(`Contact ${newContact.name} already exists`);
     }
-    this.setState(prevState => ({
-      contacts: [{ id: nanoid(), ...newContact }, ...prevState.contacts],
-    }));
+    setContacts(contacts => [{ id: nanoid(), ...newContact }, ...contacts]);
   };
 
-  deleteContact = idContact => {
-    this.setState(prevState => ({
-      contacts: prevState.contacts.filter(contact => contact.id !== idContact),
-    }));
+  const deleteContact = idContact => {
+    setContacts(contacts.filter(contact => contact.id !== idContact));
   };
 
-  changeFilter = evt =>
-    this.setState({ filter: evt.target.value.toLowerCase() });
+  const changeFilter = evt => setFilter(evt.target.value.toLowerCase());
 
-  getVisibleContacts = () =>
-    this.state.contacts.filter(contact =>
-      contact.name.toLowerCase().includes(this.state.filter.toLowerCase())
+  const getVisibleContacts = () => {
+    const normalizedFilter = filter.toLowerCase();
+    const filteredContacts = contacts.filter(contact =>
+      contact.name.toLowerCase().includes(normalizedFilter)
     );
+    if (normalizedFilter && !filteredContacts.length) {
+      return toast.info('No contacts', notifyOptions);
+    }
+    return filteredContacts;
+  };
 
-  render() {
-    const { filter, contacts } = this.state;
-    const visibleContacts = this.getVisibleContacts();
-    return (
+  return (
+    <>
       <Layout>
         <Section title="Phonebook">
-          <ContactForm onAddContact={this.addContact} />
+          <ContactForm onAddContact={addContact} />
           {contacts.length > 0 && (
             <>
               <Header title="Contacts" />
-              <Filter onChange={this.changeFilter} value={filter} />
+              <Filter onChange={changeFilter} value={filter} />
               <ContactList
-                contacts={visibleContacts}
-                onDelete={this.deleteContact}
+                contacts={getVisibleContacts()}
+                onDelete={deleteContact}
               />
             </>
           )}
         </Section>
         <GlobalStyle />
       </Layout>
-    );
-  }
-}
+      <ToastContainer transition={Slide} draggablePercent={60} />
+    </>
+  );
+};
+
